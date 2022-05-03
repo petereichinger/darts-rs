@@ -21,14 +21,14 @@ impl Multiplier {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InvalidThrowError {
     BullseyeTriple,
-    InvalidValue(u8),
+    InvalidNumber(u8),
 }
 
 impl std::fmt::Display for InvalidThrowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InvalidThrowError::BullseyeTriple => writeln!(f, "Bullseye cannot be a triple"),
-            InvalidThrowError::InvalidValue(val) => writeln!(f, "Throw has invalid value {val}"),
+            InvalidThrowError::InvalidNumber(val) => writeln!(f, "Throw has invalid value {val}"),
         }
     }
 }
@@ -48,36 +48,55 @@ impl std::error::Error for InvalidThrowError {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct Throw {
-    multiplier: Multiplier,
-    number: u8,
+pub enum Throw {
+    Bullseye(Multiplier),
+    Number(Multiplier, u8),
+    Miss,
 }
 
 impl Throw {
-    fn valid_number(number: u8) -> bool {
-        (1..=20).contains(&number) || number == 25
-    }
-
-    /// Construct a new Throw
-    ///
-    /// # Parameters
-    ///
-    /// - multiplier : Enum denoting the multipier region that was hit
-    /// - number : Value that was hit
+    /// Create a new bullseye throw.
     ///
     /// # Returns
     ///
-    /// A [Result] containing a successfully created [Throw] or an [InvalidThrowError] enum specifying what was wrong
-    pub fn new(multiplier: Multiplier, number: u8) -> Result<Throw, InvalidThrowError> {
+    /// - [Ok(Throw)] if Multiplier is [Multiplier::Single] [Multiplier::Double]
+    /// - [Err(InvalidThrowError)] otherwise
+    pub fn bullseye(multiplier: Multiplier) -> Result<Throw, InvalidThrowError> {
         match multiplier {
-            Multiplier::Triple if number == 25 => Err(InvalidThrowError::BullseyeTriple),
-            _ if !Throw::valid_number(number) => Err(InvalidThrowError::InvalidValue(number)),
-            multiplier => Ok(Throw { multiplier, number }),
+            Multiplier::Triple => Err(InvalidThrowError::BullseyeTriple),
+            mult => Ok(Throw::Bullseye(mult)),
         }
     }
 
+    /// Create a new number 1-20 throw.
+    ///
+    /// # Returns
+    ///
+    /// - [Ok(Throw)] if [number] is in range [1;20]
+    /// - [Err(InvalidThrowError)] otherwise
+    pub fn number(multiplier: Multiplier, number: u8) -> Result<Throw, InvalidThrowError> {
+        match number {
+            number if (1u8..21u8).contains(&number) => Ok(Throw::Number(multiplier, number)),
+            number => Err(InvalidThrowError::InvalidNumber(number)),
+        }
+    }
+
+    /// Create a missed throw
+    ///
+    /// # Returns
+    ///
+    /// - [Ok(Throw::Miss)]
+    pub fn miss() -> Result<Throw, InvalidThrowError> {
+        Ok(Throw::Miss)
+    }
+
+    /// Calculate the score of the throw.
     pub fn score(&self) -> u8 {
-        self.multiplier.factor() * self.number
+        match self {
+            Throw::Miss => 0,
+            Throw::Bullseye(mult) => 25 * mult.factor(),
+            Throw::Number(mult, number) => mult.factor() * number,
+        }
     }
 }
 
@@ -87,36 +106,44 @@ mod tests {
 
     #[test]
     fn triple_20_is_valid() {
-        let throw = Throw::new(Multiplier::Triple, 20);
+        let throw = Throw::number(Multiplier::Triple, 20);
 
-        assert_eq!(
-            throw,
-            Ok(Throw {
-                multiplier: Multiplier::Triple,
-                number: 20
-            })
-        );
+        assert_eq!(throw, Ok(Throw::Number(Multiplier::Triple, 20)));
     }
 
     #[test]
     fn triple_bullseye_is_not_valid() {
-        let throw = Throw::new(Multiplier::Triple, 25);
+        let throw = Throw::bullseye(Multiplier::Triple);
         assert_eq!(throw, Err(InvalidThrowError::BullseyeTriple));
     }
 
     #[test]
     fn invalid_numbers_lead_to_err() {
         for number in [0u8, 21, 26] {
-            let throw = Throw::new(Multiplier::Single, number);
+            let throw = Throw::number(Multiplier::Single, number);
 
-            assert_eq!(throw, Err(InvalidThrowError::InvalidValue(number)));
+            assert_eq!(throw, Err(InvalidThrowError::InvalidNumber(number)));
         }
     }
 
     #[test]
     fn score_is_calculated_correctly() {
-        let score = Throw::new(Multiplier::Triple, 20).unwrap().score();
-
+        let score = Throw::number(Multiplier::Triple, 20).unwrap().score();
         assert_eq!(score, 60);
+    }
+
+    #[test]
+    fn miss_has_score_zero() {
+        let score = Throw::miss().unwrap().score();
+        assert_eq!(score, 0)
+    }
+
+    #[test]
+    fn bullseye_scores_correct() {
+        let score = Throw::bullseye(Multiplier::Single).unwrap().score();
+        assert_eq!(score, 25);
+
+        let score = Throw::bullseye(Multiplier::Double).unwrap().score();
+        assert_eq!(score, 50);
     }
 }
