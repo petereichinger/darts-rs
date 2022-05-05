@@ -1,34 +1,9 @@
-use std::{error::Error, fmt::Display};
-
 use super::throw::*;
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum AddThrowError {
-    MaximumThrowsReached,
-}
-
-impl Error for AddThrowError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
-        self.source()
-    }
-}
-
-impl Display for AddThrowError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AddThrowError::MaximumThrowsReached => writeln!(f, "Maximum throws reached!"),
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Turn {
     throws: Vec<Throw>,
-    maximum_throws: u8,
+    bust: bool,
 }
 
 impl Default for Turn {
@@ -38,24 +13,36 @@ impl Default for Turn {
 }
 
 impl Turn {
-    pub fn new() -> Turn {
+    pub fn new() -> Self {
         Turn {
             throws: vec![],
-            maximum_throws: 3,
+            bust: false,
         }
     }
 
-    pub fn add_throw(&mut self, throw: Throw) -> Result<(), AddThrowError> {
-        if self.throws.len() >= self.maximum_throws as usize {
-            Err(AddThrowError::MaximumThrowsReached)
+    pub fn add_throw(&mut self, throw: Throw) -> Result<(), ()> {
+        if self.bust {
+            Err(())
         } else {
             self.throws.push(throw);
             Ok(())
         }
     }
 
-    pub fn score(&self) -> u8 {
-        self.throws.iter().map(|t| t.score()).sum()
+    pub fn num_throws(&self) -> usize {
+        self.throws.len()
+    }
+
+    pub fn points(&self) -> u8 {
+        self.throws.iter().map(|t| t.points()).sum()
+    }
+
+    pub fn bust(&mut self) {
+        self.bust = true;
+    }
+
+    pub fn is_bust(&self) -> bool {
+        self.bust
     }
 }
 
@@ -69,25 +56,30 @@ mod tests {
         let triple_20 = Throw::number(Multiplier::Triple, 20).unwrap();
 
         (0..3).for_each(|_| {
-            round.add_throw(triple_20.clone()).unwrap();
+            assert_eq!(Ok(()), round.add_throw(triple_20.clone()));
         });
 
-        assert_eq!(round.score(), 180);
+        assert_eq!(round.points(), 180);
     }
 
     #[test]
-    fn four_throws_are_invalid() {
-        let mut round = Turn::new();
+    fn bust_is_set_correctly() {
+        let mut turn = Turn::new();
 
-        let triple_20 = Throw::number(Multiplier::Triple, 20).unwrap();
+        turn.bust();
 
-        (0..3).for_each(|_| {
-            round.add_throw(triple_20.clone()).unwrap();
-        });
+        assert_eq!(turn.bust, true);
+    }
+
+    #[test]
+    fn cant_add_throw_to_busted_turn() {
+        let mut turn = Turn::new();
+
+        turn.bust();
 
         assert_eq!(
-            round.add_throw(triple_20),
-            Err(AddThrowError::MaximumThrowsReached)
-        )
+            turn.add_throw(Throw::number(Multiplier::Triple, 20).unwrap()),
+            Err(())
+        );
     }
 }

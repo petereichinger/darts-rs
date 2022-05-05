@@ -26,7 +26,7 @@ impl std::fmt::Display for NewPlayerError {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Player {
     name: String,
 }

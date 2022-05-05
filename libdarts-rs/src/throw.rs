@@ -91,7 +91,7 @@ impl Throw {
     }
 
     /// Calculate the score of the throw.
-    pub fn score(&self) -> u8 {
+    pub fn points(&self) -> u8 {
         match self {
             Throw::Miss => 0,
             Throw::Bullseye(mult) => 25 * mult.factor(),
@@ -128,22 +128,22 @@ mod tests {
 
     #[test]
     fn score_is_calculated_correctly() {
-        let score = Throw::number(Multiplier::Triple, 20).unwrap().score();
+        let score = Throw::number(Multiplier::Triple, 20).unwrap().points();
         assert_eq!(score, 60);
     }
 
     #[test]
     fn miss_has_score_zero() {
-        let score = Throw::miss().unwrap().score();
+        let score = Throw::miss().unwrap().points();
         assert_eq!(score, 0)
     }
 
     #[test]
     fn bullseye_scores_correct() {
-        let score = Throw::bullseye(Multiplier::Single).unwrap().score();
+        let score = Throw::bullseye(Multiplier::Single).unwrap().points();
         assert_eq!(score, 25);
 
-        let score = Throw::bullseye(Multiplier::Double).unwrap().score();
+        let score = Throw::bullseye(Multiplier::Double).unwrap().points();
         assert_eq!(score, 50);
     }
 }
