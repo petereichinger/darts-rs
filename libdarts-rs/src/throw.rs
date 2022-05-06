@@ -81,6 +81,18 @@ impl Throw {
         }
     }
 
+    pub fn single(number: u8) -> Result<Throw, InvalidThrowError> {
+        Self::number(Multiplier::Single, number)
+    }
+
+    pub fn double(number: u8) -> Result<Throw, InvalidThrowError> {
+        Self::number(Multiplier::Double, number)
+    }
+
+    pub fn triple(number: u8) -> Result<Throw, InvalidThrowError> {
+        Self::number(Multiplier::Triple, number)
+    }
+
     /// Create a missed throw
     ///
     /// # Returns
@@ -96,6 +108,14 @@ impl Throw {
             Throw::Miss => 0,
             Throw::Bullseye(mult) => 25 * mult.factor(),
             Throw::Number(mult, number) => mult.factor() * number,
+        }
+    }
+
+    pub fn multiplier(&self) -> Option<Multiplier> {
+        match self {
+            Throw::Bullseye(mult) => Some(*mult),
+            Throw::Number(mult, _) => Some(*mult),
+            Throw::Miss => None,
         }
     }
 }

@@ -1,6 +1,10 @@
 use builder_pattern::Builder;
 
-use crate::{player::Player, throw::Throw, turn::Turn};
+use crate::{
+    player::Player,
+    throw::{Multiplier, Throw},
+    turn::Turn,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Participant {
@@ -17,6 +21,7 @@ impl Participant {
     }
 }
 
+#[allow(dead_code)]
 fn is_valid_score(score: u32) -> Result<u32, ()> {
     if score > 1 && (score - 1) % 100 == 0 {
         Ok(score)
@@ -25,11 +30,53 @@ fn is_valid_score(score: u32) -> Result<u32, ()> {
     }
 }
 
-#[derive(Builder, Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InRule {
+    Any,
+    Double,
+    Triple,
+}
+
+impl InRule {
+    pub fn valid_throw(&self, throw: &Throw) -> bool {
+        match self {
+            InRule::Any => true,
+            InRule::Double => throw.multiplier() == Some(Multiplier::Double),
+            InRule::Triple => throw.multiplier() == Some(Multiplier::Triple),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OutRule {
+    Any,
+    Double,
+    Triple,
+}
+
+impl OutRule {
+    pub fn valid_throw(&self, remaining_points: u32, throw: &Throw) -> bool {
+        match self {
+            OutRule::Any => true,
+            OutRule::Double => {
+                remaining_points > 1 && throw.multiplier() == Some(Multiplier::Double)
+            }
+            OutRule::Triple => {
+                remaining_points > 2 && throw.multiplier() == Some(Multiplier::Triple)
+            }
+        }
+    }
+}
+
+#[derive(Builder, Debug, Clone, PartialEq, Eq)]
 pub struct X01Game {
     #[validator(is_valid_score)]
-    pub score: u32,
-    pub players: Vec<Participant>,
+    score: u32,
+    players: Vec<Participant>,
+    #[default(InRule::Any)]
+    in_rule: InRule,
+    #[default(OutRule::Any)]
+    out_rule: OutRule,
 }
 
 impl X01Game {
@@ -46,7 +93,7 @@ impl X01Game {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct CurrentPlayer {
     index: usize,
     points: u32,
@@ -58,7 +105,7 @@ pub enum AddThrowResult {
     Unfinished(X01GameTurn),
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct X01GameTurn {
     game: X01Game,
     current: CurrentPlayer,
@@ -124,6 +171,7 @@ impl X01GameTurn {
     pub fn add_throw(mut self, throw: Throw) -> AddThrowResult {
         // Check if current throw results in new turn, win, continue turn, bust of turn
 
+        // TODO: Validate in and out rules
         let turn_points = self.turn.points();
 
         let new_points = turn_points + throw.points();
