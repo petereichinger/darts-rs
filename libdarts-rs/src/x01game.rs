@@ -55,15 +55,19 @@ pub enum OutRule {
 }
 
 impl OutRule {
-    pub fn valid_throw(&self, remaining_points: u32, throw: &Throw) -> bool {
+    pub fn valid_finisher(&self, throw: &Throw) -> bool {
         match self {
             OutRule::Any => true,
-            OutRule::Double => {
-                remaining_points > 1 && throw.multiplier() == Some(Multiplier::Double)
-            }
-            OutRule::Triple => {
-                remaining_points > 2 && throw.multiplier() == Some(Multiplier::Triple)
-            }
+            OutRule::Double => throw.multiplier() == Some(Multiplier::Double),
+            OutRule::Triple => throw.multiplier() == Some(Multiplier::Triple),
+        }
+    }
+
+    pub fn valid_remaining_points(&self, remaining_points: u32) -> bool {
+        match self {
+            OutRule::Any => remaining_points >= 1,
+            OutRule::Double => remaining_points >= 2,
+            OutRule::Triple => remaining_points >= 3,
         }
     }
 }
@@ -101,7 +105,7 @@ struct CurrentPlayer {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AddThrowResult {
-    Finished(Participant),
+    Finished(X01Game),
     Unfinished(X01GameTurn),
 }
 
@@ -146,11 +150,16 @@ impl X01GameTurn {
         }
     }
 
-    fn next_turn(mut self) -> Self {
+    fn bust_turn(mut self) -> AddThrowResult {
+        self.turn.bust();
+        self.next_turn()
+    }
+
+    fn next_turn(mut self) -> AddThrowResult {
         let turn = std::mem::take(&mut self.turn);
         self.current_participant_mut().turns.push(turn);
         let next_player = (self.current.index + 1) % self.game.players.len();
-        X01GameTurn::new(self.game, next_player).unwrap()
+        AddThrowResult::Unfinished(X01GameTurn::new(self.game, next_player).unwrap())
     }
 
     pub fn current_player(&self) -> &Player {
@@ -171,28 +180,35 @@ impl X01GameTurn {
     pub fn add_throw(mut self, throw: Throw) -> AddThrowResult {
         // Check if current throw results in new turn, win, continue turn, bust of turn
 
-        // TODO: Validate in and out rules
+        let first_throw =
+            self.current_participant_mut().turns.is_empty() && self.turn.num_throws() == 0;
+        self.turn.add_throw(throw.clone()).unwrap();
+
+        if first_throw && !self.game.in_rule.valid_throw(&throw) {
+            return self.bust_turn();
+        }
+
         let turn_points = self.turn.points();
 
-        let new_points = turn_points + throw.points();
-
-        self.turn.add_throw(throw).unwrap();
-
-        match self.current.points.checked_sub(new_points.into()) {
-            None => {
-                self.turn.bust();
-                AddThrowResult::Unfinished(self.next_turn())
-            }
+        match self.current.points.checked_sub(turn_points.into()) {
+            None => self.bust_turn(), // Player has thrown more points than remain
             Some(points) => {
                 if points == 0 {
-                    // WINNER
-                    AddThrowResult::Finished(self.current_participant_mut().clone())
-                } else {
-                    AddThrowResult::Unfinished(if self.turn.num_throws() == 3 {
-                        self.next_turn()
+                    if self.game.out_rule.valid_finisher(&throw) {
+                        AddThrowResult::Finished(self.game)
                     } else {
-                        self
-                    })
+                        self.bust_turn()
+                    }
+                } else {
+                    if self.game.out_rule.valid_remaining_points(points) {
+                        if self.turn.num_throws() == 3 {
+                            self.next_turn()
+                        } else {
+                            AddThrowResult::Unfinished(self)
+                        }
+                    } else {
+                        self.bust_turn()
+                    }
                 }
             }
         }
