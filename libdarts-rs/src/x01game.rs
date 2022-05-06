@@ -200,16 +200,20 @@ mod tests {
         let turn = game.begin();
 
         let first_throw = Throw::number(Multiplier::Triple, 20).unwrap();
-        let result = turn.add_throw(first_throw);
 
-        if let AddThrowResult::Unfinished(turn) = result {
+        if let AddThrowResult::Unfinished(turn) = turn.add_throw(first_throw) {
+            assert_eq!(turn.current_points(), 41);
+
             let second_throw = Throw::number(Multiplier::Double, 20).unwrap();
 
             if let AddThrowResult::Unfinished(turn) = turn.add_throw(second_throw) {
+                assert_eq!(turn.current_points(), 1);
+
                 let last_throw = Throw::number(Multiplier::Single, 1).unwrap();
 
                 if let AddThrowResult::Finished(part) = turn.add_throw(last_throw) {
                     assert_eq!(part.player, player);
+                    return;
                 }
             }
         }
