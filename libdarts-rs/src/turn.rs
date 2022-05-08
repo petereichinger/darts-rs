@@ -1,15 +1,9 @@
 use super::throw::*;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Turn {
     throws: Vec<Throw>,
     bust: bool,
-}
-
-impl Default for Turn {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Turn {

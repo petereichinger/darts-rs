@@ -17,7 +17,7 @@ impl Multiplier {
     }
 }
 
-/// An error that might occur when using [Throw::new()]
+/// An error that might occur when using any of the methods to creat a throw
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InvalidThrowError {
     BullseyeTriple,
@@ -47,10 +47,17 @@ impl std::error::Error for InvalidThrowError {
     }
 }
 
+/// Typedef for the return value of the various creation methods of throws
+pub type ThrowResult = Result<Throw, InvalidThrowError>;
+
+/// Represents a single throw on the dart board
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Throw {
+    /// The inner two rings of the dartboard, Multiplier indicates inner or outer bullseye
     Bullseye(Multiplier),
+    /// One of the twenty numbers with multiplier
     Number(Multiplier, u8),
+    /// Didn't hit any scoring region or the board at all
     Miss,
 }
 
@@ -61,7 +68,7 @@ impl Throw {
     ///
     /// - [Ok(Throw)] if Multiplier is [Multiplier::Single] [Multiplier::Double]
     /// - [Err(InvalidThrowError)] otherwise
-    pub fn bullseye(multiplier: Multiplier) -> Result<Throw, InvalidThrowError> {
+    pub fn bullseye(multiplier: Multiplier) -> ThrowResult {
         match multiplier {
             Multiplier::Triple => Err(InvalidThrowError::BullseyeTriple),
             mult => Ok(Throw::Bullseye(mult)),
@@ -72,24 +79,33 @@ impl Throw {
     ///
     /// # Returns
     ///
-    /// - [Ok(Throw)] if [number] is in range [1;20]
-    /// - [Err(InvalidThrowError)] otherwise
-    pub fn number(multiplier: Multiplier, number: u8) -> Result<Throw, InvalidThrowError> {
+    /// - [`Result::Ok([Throw])`] if [Throw::number] is in range \[1;20\]
+    /// - [`Err(InvalidThrowError)`] otherwise
+    pub fn number(multiplier: Multiplier, number: u8) -> ThrowResult {
         match number {
             number if (1u8..21u8).contains(&number) => Ok(Throw::Number(multiplier, number)),
             number => Err(InvalidThrowError::InvalidNumber(number)),
         }
     }
 
-    pub fn single(number: u8) -> Result<Throw, InvalidThrowError> {
+    /// Create a new single hit of a number
+    ///
+    /// Calls [Throw::number(Multiplier::Single, number)]
+    pub fn single(number: u8) -> ThrowResult {
         Self::number(Multiplier::Single, number)
     }
 
-    pub fn double(number: u8) -> Result<Throw, InvalidThrowError> {
+    /// Create a new double hit of a number
+    ///
+    /// Calls [Throw::number(Multiplier::Double, number)]
+    pub fn double(number: u8) -> ThrowResult {
         Self::number(Multiplier::Double, number)
     }
 
-    pub fn triple(number: u8) -> Result<Throw, InvalidThrowError> {
+    /// Create a new triple hit of a number
+    ///
+    /// Calls [Throw::number(Multiplier::Triple, number)]
+    pub fn triple(number: u8) -> ThrowResult {
         Self::number(Multiplier::Triple, number)
     }
 
@@ -98,7 +114,7 @@ impl Throw {
     /// # Returns
     ///
     /// - [Ok(Throw::Miss)]
-    pub fn miss() -> Result<Throw, InvalidThrowError> {
+    pub fn miss() -> ThrowResult {
         Ok(Throw::Miss)
     }
 
@@ -111,6 +127,12 @@ impl Throw {
         }
     }
 
+    /// Get the multiplier if there is one
+    ///
+    /// # Returns
+    ///
+    /// - [OK(Multiplier)] if the throw is a number or bullseye throw
+    /// - None in case of a miss
     pub fn multiplier(&self) -> Option<Multiplier> {
         match self {
             Throw::Bullseye(mult) => Some(*mult),
