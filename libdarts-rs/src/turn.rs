@@ -6,6 +6,13 @@ pub struct Turn {
     bust: bool,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ThrowError {
+    Bust,
+}
+
+pub type ThrowResult = Result<(), ThrowError>;
+
 impl Turn {
     pub fn new() -> Self {
         Turn {
@@ -14,9 +21,9 @@ impl Turn {
         }
     }
 
-    pub fn add_throw(&mut self, throw: Throw) -> Result<(), ()> {
+    pub fn add_throw(&mut self, throw: Throw) -> ThrowResult {
         if self.bust {
-            Err(())
+            Err(ThrowError::Bust)
         } else {
             self.throws.push(throw);
             Ok(())
@@ -28,7 +35,11 @@ impl Turn {
     }
 
     pub fn points(&self) -> u8 {
-        self.throws.iter().map(|t| t.points()).sum()
+        if self.bust {
+            0
+        } else {
+            self.throws.iter().map(|t| t.points()).sum()
+        }
     }
 
     pub fn bust(&mut self) {
@@ -73,7 +84,7 @@ mod tests {
 
         assert_eq!(
             turn.add_throw(Throw::number(Multiplier::Triple, 20).unwrap()),
-            Err(())
+            Err(ThrowError::Bust)
         );
     }
 }

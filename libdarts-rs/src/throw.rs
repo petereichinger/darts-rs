@@ -8,7 +8,7 @@ pub enum Multiplier {
 
 impl Multiplier {
     /// Get the actual number to multiply the thrown number with
-    pub fn factor(&self) -> u8 {
+    fn factor(&self) -> u8 {
         match self {
             Multiplier::Single => 1,
             Multiplier::Double => 2,
@@ -20,8 +20,12 @@ impl Multiplier {
 /// An error that might occur when using any of the methods to creat a throw
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InvalidThrowError {
+    /// Triple for bullseye are not valid
     BullseyeTriple,
+    /// Valid numbers are 1-20 inclusive
     InvalidNumber(u8),
+    // Error during parse
+    Unparseable(String),
 }
 
 impl std::fmt::Display for InvalidThrowError {
@@ -29,6 +33,7 @@ impl std::fmt::Display for InvalidThrowError {
         match self {
             InvalidThrowError::BullseyeTriple => writeln!(f, "Bullseye cannot be a triple"),
             InvalidThrowError::InvalidNumber(val) => writeln!(f, "Throw has invalid value {val}"),
+            InvalidThrowError::Unparseable(text) => writeln!(f, "Could not parse {}", text),
         }
     }
 }
@@ -63,11 +68,6 @@ pub enum Throw {
 
 impl Throw {
     /// Create a new bullseye throw.
-    ///
-    /// # Returns
-    ///
-    /// - [Ok(Throw)] if Multiplier is [Multiplier::Single] [Multiplier::Double]
-    /// - [Err(InvalidThrowError)] otherwise
     pub fn bullseye(multiplier: Multiplier) -> ThrowResult {
         match multiplier {
             Multiplier::Triple => Err(InvalidThrowError::BullseyeTriple),
@@ -76,11 +76,6 @@ impl Throw {
     }
 
     /// Create a new number 1-20 throw.
-    ///
-    /// # Returns
-    ///
-    /// - [`Result::Ok([Throw])`] if [Throw::number] is in range \[1;20\]
-    /// - [`Err(InvalidThrowError)`] otherwise
     pub fn number(multiplier: Multiplier, number: u8) -> ThrowResult {
         match number {
             number if (1u8..21u8).contains(&number) => Ok(Throw::Number(multiplier, number)),
@@ -89,15 +84,11 @@ impl Throw {
     }
 
     /// Create a new single hit of a number
-    ///
-    /// Calls [Throw::number(Multiplier::Single, number)]
     pub fn single(number: u8) -> ThrowResult {
         Self::number(Multiplier::Single, number)
     }
 
     /// Create a new double hit of a number
-    ///
-    /// Calls [Throw::number(Multiplier::Double, number)]
     pub fn double(number: u8) -> ThrowResult {
         Self::number(Multiplier::Double, number)
     }
@@ -110,12 +101,44 @@ impl Throw {
     }
 
     /// Create a missed throw
-    ///
-    /// # Returns
-    ///
-    /// - [Ok(Throw::Miss)]
     pub fn miss() -> ThrowResult {
         Ok(Throw::Miss)
+    }
+
+    fn parse_multiplier(ch: &char) -> Option<Multiplier> {
+        match ch {
+            'd' | 'D' => Some(Multiplier::Double),
+            't' | 'T' => Some(Multiplier::Triple),
+            _ => None,
+        }
+    }
+
+    pub fn from_str(text: &str) -> ThrowResult {
+        let mut chars = text.chars().peekable();
+
+        match chars.peek() {
+            None => return Err(InvalidThrowError::Unparseable(text.into())),
+            Some(ch) => {
+                let opt_mult = Self::parse_multiplier(ch);
+
+                let mult = match opt_mult {
+                    Some(mult) => {
+                        chars.next(); // gotta skip the multiplier char
+                        mult
+                    }
+                    None => Multiplier::Single,
+                };
+
+                let number = chars.collect::<String>().parse::<u8>().ok();
+
+                match number {
+                    Some(n) if (1..21).contains(&n) => Ok(Throw::Number(mult, n)),
+                    Some(n) if n == 25 => Throw::bullseye(mult),
+                    Some(n) if n == 0 => Ok(Throw::Miss),
+                    _ => Err(InvalidThrowError::Unparseable(text.into())),
+                }
+            }
+        }
     }
 
     /// Calculate the score of the throw.
@@ -144,6 +167,7 @@ impl Throw {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -187,5 +211,41 @@ mod tests {
 
         let score = Throw::bullseye(Multiplier::Double).unwrap().points();
         assert_eq!(score, 50);
+    }
+
+    #[test]
+    fn test_parse_miss() {
+        assert_eq!(Throw::miss(), Throw::from_str("0"));
+    }
+
+    #[test]
+    fn test_parse_bullseye() {
+        assert_eq!(Throw::bullseye(Multiplier::Single), Throw::from_str("25"));
+    }
+
+    #[test]
+    fn test_parse_double_bullseye() {
+        assert_eq!(Throw::bullseye(Multiplier::Double), Throw::from_str("D25"));
+    }
+
+    #[test]
+    fn test_parse_singles() {
+        for number in 1..=20 {
+            assert_eq!(Throw::single(number), Throw::from_str(&number.to_string()));
+        }
+    }
+    #[test]
+    fn test_parse_doubles() {
+        for number in 1..=20 {
+            let string = "D".to_owned() + &number.to_string();
+            assert_eq!(Throw::double(number), Throw::from_str(&string));
+        }
+    }
+    #[test]
+    fn test_parse_triples() {
+        for number in 1..=20 {
+            let string = "T".to_owned() + &number.to_string();
+            assert_eq!(Throw::triple(number), Throw::from_str(&string));
+        }
     }
 }
