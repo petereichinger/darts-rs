@@ -1,16 +1,16 @@
-use crate::{player::Player, turn::Turn};
+use std::ops::{Index, IndexMut};
+
+use crate::player::Player;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Participant {
     pub player: Player,
-    pub turns: Vec<Turn>,
 }
 
 impl Participant {
     pub fn new(player: &Player) -> Participant {
         Participant {
             player: player.clone(),
-            turns: vec![],
         }
     }
 }
@@ -29,7 +29,6 @@ impl ParticipantsBuilder {
     pub fn add(mut self, player: &Player) -> Self {
         self.participants.push(Participant {
             player: player.clone(),
-            turns: vec![],
         });
 
         Self {
@@ -49,8 +48,26 @@ pub struct Participants {
     pub participants: Vec<Participant>,
 }
 
+impl Index<usize> for Participants {
+    type Output = Participant;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.participants[index]
+    }
+}
+
+impl IndexMut<usize> for Participants {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.participants[index]
+    }
+}
+
 impl Participants {
     pub fn new() -> ParticipantsBuilder {
         ParticipantsBuilder::new()
+    }
+
+    pub fn count(&self) -> usize {
+        self.participants.len()
     }
 }

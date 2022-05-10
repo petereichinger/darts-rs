@@ -1,3 +1,3 @@
-pub mod game;
+pub mod leg;
 pub mod participant;
 pub mod ruleset;

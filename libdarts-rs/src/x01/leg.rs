@@ -1,9 +1,6 @@
 use crate::{player::Player, throw::Throw, turn::Turn};
 
-use super::{
-    participant::{Participant, Participants},
-    ruleset::Ruleset,
-};
+use super::{participant::Participants, ruleset::Ruleset};
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 struct CurrentPlayer {
@@ -19,19 +16,19 @@ pub enum State {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ThrowResult {
+pub struct ThrowResult<'a> {
     pub state: State,
-    pub game: Game,
+    pub game: Leg<'a>,
 }
 
-impl ThrowResult {
-    fn unfinished(game: Game) -> ThrowResult {
+impl<'a> ThrowResult<'_> {
+    fn unfinished(game: Leg) -> ThrowResult {
         ThrowResult {
             state: State::Unfinished,
             game,
         }
     }
-    fn finished(game: Game) -> ThrowResult {
+    fn finished(game: Leg) -> ThrowResult {
         ThrowResult {
             state: State::Finished,
             game,
@@ -40,15 +37,20 @@ impl ThrowResult {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Game {
-    ruleset: Ruleset,
-    participants: Participants,
+struct ParticipantData {
+    turns: Vec<Turn>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Leg<'a> {
+    ruleset: &'a Ruleset,
+    participants: &'a Participants,
     current: CurrentPlayer,
+    data: Vec<ParticipantData>,
 }
 
-impl Game {
-    fn calculate_score(participant: &Participant, start_score: u32) -> Option<u32> {
-        let sum = participant
+impl<'a> Leg<'a> {
+    fn calculate_score(&self, player_index: usize, start_score: u32) -> Option<u32> {
+        let sum = self.data[player_index]
             .turns
             .iter()
             .filter_map(|turn| {
@@ -63,21 +65,28 @@ impl Game {
         start_score.checked_sub(sum)
     }
 
-    pub fn new(ruleset: Ruleset, participants: Participants) -> Self {
-        Game {
+    pub fn new(ruleset: &'a Ruleset, participants: &'a Participants) -> Self {
+        let mut data = vec![];
+
+        for _ in 0..participants.count() {
+            data.push(ParticipantData { turns: vec![] })
+        }
+
+        Self {
             ruleset,
             participants,
             current: Default::default(),
+            data,
         }
         .begin_turn(0)
     }
 
     fn begin_turn(self, next_player: usize) -> Self {
-        let participant = &self.participants.participants[next_player];
-        let points = Game::calculate_score(participant, *self.ruleset.score());
+        // let participant = &self.participants.participants[next_player];
+        let points = self.calculate_score(next_player, *self.ruleset.score());
 
         if let Some(points) = points {
-            Game {
+            Leg {
                 current: CurrentPlayer {
                     index: next_player,
                     points,
@@ -90,16 +99,16 @@ impl Game {
         }
     }
 
-    fn bust_turn(mut self) -> ThrowResult {
+    fn bust_turn(mut self) -> ThrowResult<'a> {
         self.current.turn.bust();
         self.next_turn()
     }
 
-    fn next_turn(mut self) -> ThrowResult {
+    fn next_turn(mut self) -> ThrowResult<'a> {
         let turn = std::mem::take(&mut self.current.turn);
-        self.current_participant_mut().turns.push(turn);
+        self.data[self.current.index].turns.push(turn);
         let next_player = (self.current.index + 1) % self.participants.participants.len();
-        ThrowResult::unfinished(Game::begin_turn(self, next_player))
+        ThrowResult::unfinished(Leg::begin_turn(self, next_player))
     }
 
     pub fn current_player(&self) -> &Player {
@@ -113,15 +122,11 @@ impl Game {
             .unwrap()
     }
 
-    fn current_participant_mut(&mut self) -> &mut Participant {
-        &mut self.participants.participants[self.current.index]
-    }
-
-    pub fn add_throw(mut self, throw: Throw) -> ThrowResult {
+    pub fn add_throw(mut self, throw: Throw) -> ThrowResult<'a> {
         // Check if current throw results in new turn, win, continue turn, bust of turn
 
         let first_throw =
-            self.current_participant_mut().turns.is_empty() && self.current.turn.num_throws() == 0;
+            self.data[self.current.index].turns.is_empty() && self.current.turn.num_throws() == 0;
         self.current.turn.add_throw(throw.clone()).unwrap();
 
         if first_throw && !self.ruleset.in_rule().valid_throw(&throw) {
@@ -157,12 +162,12 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use crate::x01::game::State;
+    use crate::x01::leg::State;
     use crate::x01::participant::Participants;
-    use crate::x01::{game::ThrowResult, ruleset::Ruleset};
+    use crate::x01::{leg::ThrowResult, ruleset::Ruleset};
     use crate::{player::Player, throw::Throw};
 
-    use super::Game;
+    use super::Leg;
 
     fn test_participants(n: u8) -> Participants {
         let mut participants = Participants::new();
@@ -184,7 +189,7 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Game::new(ruleset, participants);
+        let game = Leg::new(&ruleset, &participants);
 
         let first_throw = Throw::triple(20).unwrap();
         let second_throw = Throw::double(20).unwrap();
@@ -212,7 +217,7 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let mut game = Game::new(ruleset, participants.clone());
+        let mut game = Leg::new(&ruleset, &participants);
 
         let miss = Throw::miss().unwrap();
 
@@ -241,7 +246,7 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Game::new(ruleset, participants.clone());
+        let game = Leg::new(&ruleset, &participants);
 
         let miss = Throw::miss().unwrap();
         let d20 = Throw::double(20).unwrap();
@@ -262,7 +267,7 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Game::new(ruleset, participants.clone());
+        let game = Leg::new(&ruleset, &participants);
 
         let miss = Throw::miss().unwrap();
         let d20 = Throw::double(20).unwrap();
@@ -289,7 +294,7 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Game::new(ruleset, participants.clone());
+        let game = Leg::new(&ruleset, &participants);
 
         let t20 = Throw::triple(20).unwrap();
 
@@ -308,15 +313,15 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Game::new(ruleset, participants.clone());
+        let game = Leg::new(&ruleset, &participants);
 
         let t20 = Throw::triple(20).unwrap();
 
         let ThrowResult { state: _, game } = game.add_throw(t20.clone());
         let ThrowResult { state: _, game } = game.add_throw(t20.clone());
 
-        assert_eq!(game.participants.participants[0].turns.len(), 1);
-        assert_eq!(game.participants.participants[0].turns[0].is_bust(), true);
+        assert_eq!(game.data[0].turns.len(), 1);
+        assert_eq!(game.data[0].turns[0].is_bust(), true);
     }
 
     #[test]
@@ -325,7 +330,7 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Game::new(ruleset, participants.clone());
+        let game = Leg::new(&ruleset, &participants);
 
         let t20 = Throw::triple(20).unwrap();
 
