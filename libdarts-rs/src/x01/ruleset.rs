@@ -4,12 +4,30 @@ use getset::Getters;
 use crate::throw::{Multiplier, Throw};
 
 #[allow(dead_code)]
-fn is_valid_score(score: u32) -> Result<u32, ()> {
-    if score > 1 && (score - 1) % 100 == 0 {
-        Ok(score)
+fn is_positive(value: u8) -> Result<u8, ()> {
+    if value > 0 {
+        Ok(value)
     } else {
         Err(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Builder)]
+pub struct SetOptions {
+    /// The number of sets to play
+    #[default(1)]
+    #[validator(is_positive)]
+    pub num_sets: u8,
+
+    /// The length of each set (number of legs)
+    #[default(1)]
+    #[validator(is_positive)]
+    pub num_legs: u8,
+
+    /// The required distance in won legs in order to win a set
+    #[default(1)]
+    #[validator(is_positive)]
+    pub win_distance: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,19 +72,33 @@ impl OutRule {
     }
 }
 
+#[allow(dead_code)] // Needed because code is only used in macro Getters
+fn is_valid_score(score: u32) -> Result<u32, ()> {
+    if score > 1 && (score - 1) % 100 == 0 {
+        Ok(score)
+    } else {
+        Err(())
+    }
+}
+
 #[derive(Builder, Debug, Clone, PartialEq, Eq, Getters)]
 #[get = "pub"]
 pub struct Ruleset {
     #[validator(is_valid_score)]
-    pub(super) score: u32,
+    #[public]
+    score: u32,
     #[default(InRule::Any)]
-    pub(super) in_rule: InRule,
+    #[public]
+    in_rule: InRule,
     #[default(OutRule::Any)]
-    pub(super) out_rule: OutRule,
+    #[public]
+    out_rule: OutRule,
+    #[default(SetOptions::new().build())]
+    #[public]
+    sets: SetOptions,
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
     #[test]
@@ -92,5 +124,22 @@ mod tests {
     fn game_with_score_1_fails() {
         let game = Ruleset::new().score(1);
         assert!(game.is_err());
+    }
+
+    #[test]
+    fn games_with_0_sets_are_not_possible() {
+        let set_options = SetOptions::new().num_sets(0);
+        assert!(set_options.is_err());
+    }
+
+    #[test]
+    fn games_with_0_lets_are_not_possible() {
+        let set_options = SetOptions::new().num_legs(0);
+        assert!(set_options.is_err());
+    }
+    #[test]
+    fn games_with_0_win_distance_are_not_possible() {
+        let set_options = SetOptions::new().win_distance(0);
+        assert!(set_options.is_err());
     }
 }
