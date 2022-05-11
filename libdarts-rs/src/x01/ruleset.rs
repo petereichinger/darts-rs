@@ -20,6 +20,7 @@ pub struct SetOptions {
     pub num_sets: u8,
 
     /// The length of each set (number of legs)
+    // TODO: Sets are played best of x or first to x
     #[default(1)]
     #[validator(is_positive)]
     pub num_legs: u8,

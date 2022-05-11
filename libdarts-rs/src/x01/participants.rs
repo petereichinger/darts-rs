@@ -36,11 +36,30 @@ impl ParticipantsBuilder {
         }
     }
 
-    pub fn build(self) -> Participants {
-        Participants {
-            participants: self.participants,
+    pub fn build(self) -> Option<Participants> {
+        if self.participants.is_empty() {
+            None
+        } else {
+            Some(Participants {
+                participants: self.participants,
+            })
         }
     }
+}
+
+#[cfg(test)]
+pub fn test_participants(n: u8) -> Participants {
+    let mut participants = Participants::new();
+
+    if n > 0 {
+        participants = participants.add(&Player::new("Anna").unwrap());
+    }
+
+    if n > 1 {
+        participants = participants.add(&Player::new("Pete").unwrap());
+    }
+
+    participants.build().unwrap()
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

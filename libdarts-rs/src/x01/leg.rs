@@ -1,6 +1,6 @@
 use crate::{player::Player, throw::Throw, turn::Turn};
 
-use super::{participant::Participants, ruleset::Ruleset};
+use super::{participants::Participants, ruleset::Ruleset};
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 struct CurrentPlayer {
@@ -18,20 +18,20 @@ pub enum State {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ThrowResult<'a> {
     pub state: State,
-    pub game: Leg<'a>,
+    pub leg: Leg<'a>,
 }
 
 impl<'a> ThrowResult<'_> {
-    fn unfinished(game: Leg) -> ThrowResult {
+    fn unfinished(leg: Leg) -> ThrowResult {
         ThrowResult {
             state: State::Unfinished,
-            game,
+            leg,
         }
     }
-    fn finished(game: Leg) -> ThrowResult {
+    fn finished(leg: Leg) -> ThrowResult {
         ThrowResult {
             state: State::Finished,
-            game,
+            leg,
         }
     }
 }
@@ -65,7 +65,7 @@ impl<'a> Leg<'a> {
         start_score.checked_sub(sum)
     }
 
-    pub fn new(ruleset: &'a Ruleset, participants: &'a Participants) -> Self {
+    pub fn new(ruleset: &'a Ruleset, participants: &'a Participants, first_player: usize) -> Self {
         let mut data = vec![];
 
         for _ in 0..participants.count() {
@@ -78,7 +78,7 @@ impl<'a> Leg<'a> {
             current: Default::default(),
             data,
         }
-        .begin_turn(0)
+        .begin_turn(first_player)
     }
 
     fn begin_turn(self, next_player: usize) -> Self {
@@ -162,26 +162,12 @@ impl<'a> Leg<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::throw::Throw;
     use crate::x01::leg::State;
-    use crate::x01::participant::Participants;
+    use crate::x01::participants::test_participants;
     use crate::x01::{leg::ThrowResult, ruleset::Ruleset};
-    use crate::{player::Player, throw::Throw};
 
     use super::Leg;
-
-    fn test_participants(n: u8) -> Participants {
-        let mut participants = Participants::new();
-
-        if n > 0 {
-            participants = participants.add(&Player::new("Anna").unwrap());
-        }
-
-        if n > 1 {
-            participants = participants.add(&Player::new("Pete").unwrap());
-        }
-
-        participants.build()
-    }
 
     #[test]
     fn simple_game() {
@@ -189,26 +175,26 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Leg::new(&ruleset, &participants);
+        let leg = Leg::new(&ruleset, &participants, 0);
 
         let first_throw = Throw::triple(20).unwrap();
         let second_throw = Throw::double(20).unwrap();
         let third_throw = Throw::single(1).unwrap();
 
-        let ThrowResult { state, game } = game.add_throw(first_throw);
+        let ThrowResult { state, leg } = leg.add_throw(first_throw);
 
         assert_eq!(state, State::Unfinished);
-        assert_eq!(game.current_points(), 41);
+        assert_eq!(leg.current_points(), 41);
 
-        let ThrowResult { state, game } = game.add_throw(second_throw);
+        let ThrowResult { state, leg } = leg.add_throw(second_throw);
 
         assert_eq!(state, State::Unfinished);
-        assert_eq!(game.current_points(), 1);
+        assert_eq!(leg.current_points(), 1);
 
-        let ThrowResult { state, game } = game.add_throw(third_throw);
+        let ThrowResult { state, leg } = leg.add_throw(third_throw);
 
         assert_eq!(state, State::Finished);
-        assert_eq!(game.current_points(), 0);
+        assert_eq!(leg.current_points(), 0);
     }
 
     #[test]
@@ -217,7 +203,7 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let mut game = Leg::new(&ruleset, &participants);
+        let mut game = Leg::new(&ruleset, &participants, 0);
 
         let miss = Throw::miss().unwrap();
 
@@ -229,7 +215,7 @@ mod tests {
         for _ in 0..3 {
             let ThrowResult {
                 state: _,
-                game: new_turn,
+                leg: new_turn,
             } = game.add_throw(miss.clone());
 
             game = new_turn;
@@ -246,19 +232,19 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Leg::new(&ruleset, &participants);
+        let leg = Leg::new(&ruleset, &participants, 0);
 
         let miss = Throw::miss().unwrap();
         let d20 = Throw::double(20).unwrap();
 
-        let ThrowResult { state: _, game } = game.add_throw(d20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(d20.clone());
 
-        assert_eq!(game.current_points(), 61);
+        assert_eq!(leg.current_points(), 61);
 
-        let ThrowResult { state: _, game } = game.add_throw(miss.clone());
-        let ThrowResult { state: _, game } = game.add_throw(miss.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(miss.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(miss.clone());
 
-        assert_eq!(game.current_points(), 61);
+        assert_eq!(leg.current_points(), 61);
     }
 
     #[test]
@@ -267,25 +253,25 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Leg::new(&ruleset, &participants);
+        let leg = Leg::new(&ruleset, &participants, 0);
 
         let miss = Throw::miss().unwrap();
         let d20 = Throw::double(20).unwrap();
 
-        let ThrowResult { state: _, game } = game.add_throw(d20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(d20.clone());
 
-        assert_eq!(game.current_points(), 61);
+        assert_eq!(leg.current_points(), 61);
 
-        let ThrowResult { state: _, game } = game.add_throw(miss.clone());
-        let ThrowResult { state: _, game } = game.add_throw(miss.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(miss.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(miss.clone());
 
-        assert_eq!(game.current_points(), 101);
+        assert_eq!(leg.current_points(), 101);
 
-        let ThrowResult { state: _, game } = game.add_throw(miss.clone());
-        let ThrowResult { state: _, game } = game.add_throw(miss.clone());
-        let ThrowResult { state: _, game } = game.add_throw(miss.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(miss.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(miss.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(miss.clone());
 
-        assert_eq!(game.current_points(), 61);
+        assert_eq!(leg.current_points(), 61);
     }
 
     #[test]
@@ -294,15 +280,15 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Leg::new(&ruleset, &participants);
+        let leg = Leg::new(&ruleset, &participants, 0);
 
         let t20 = Throw::triple(20).unwrap();
 
-        let ThrowResult { state: _, game } = game.add_throw(t20.clone());
-        let ThrowResult { state: _, game } = game.add_throw(t20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(t20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(t20.clone());
 
         assert_eq!(
-            game.current_player().name(),
+            leg.current_player().name(),
             participants.participants[1].player.name()
         );
     }
@@ -313,15 +299,15 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Leg::new(&ruleset, &participants);
+        let leg = Leg::new(&ruleset, &participants, 0);
 
         let t20 = Throw::triple(20).unwrap();
 
-        let ThrowResult { state: _, game } = game.add_throw(t20.clone());
-        let ThrowResult { state: _, game } = game.add_throw(t20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(t20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(t20.clone());
 
-        assert_eq!(game.data[0].turns.len(), 1);
-        assert_eq!(game.data[0].turns[0].is_bust(), true);
+        assert_eq!(leg.data[0].turns.len(), 1);
+        assert_eq!(leg.data[0].turns[0].is_bust(), true);
     }
 
     #[test]
@@ -330,13 +316,13 @@ mod tests {
 
         let ruleset = Ruleset::new().score(101).unwrap().build();
 
-        let game = Leg::new(&ruleset, &participants);
+        let leg = Leg::new(&ruleset, &participants, 0);
 
         let t20 = Throw::triple(20).unwrap();
 
-        let ThrowResult { state: _, game } = game.add_throw(t20.clone());
-        let ThrowResult { state: _, game } = game.add_throw(t20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(t20.clone());
+        let ThrowResult { state: _, leg } = leg.add_throw(t20.clone());
 
-        assert_eq!(game.current_points(), 101);
+        assert_eq!(leg.current_points(), 101);
     }
 }
